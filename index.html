@@ -1,0 +1,1164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flop Simulator</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#9ad8ff;
+    font-family:"Comic Sans MS","Chalkboard SE","Comic Neue",cursive;user-select:none}
+  canvas{display:block}
+  .hud{position:fixed;color:#fff;text-shadow:3px 3px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000;pointer-events:none}
+  #score{top:14px;left:16px;font-size:26px;animation:wob 2s ease-in-out infinite}
+  #objective{top:54px;left:16px;font-size:18px;max-width:min(420px,80vw);background:rgba(255,0,180,.55);
+    padding:8px 12px;border-radius:14px;border:3px solid #000;transform:rotate(-1.5deg)}
+  #objective b{color:#ffef3a}
+  #event{top:22%;left:50%;transform:translate(-50%,-50%);font-size:clamp(28px,6vw,64px);text-align:center;
+    color:#ffef3a;opacity:0;transition:opacity .3s;width:90vw}
+  #toast{top:40%;left:50%;transform:translate(-50%,-50%);font-size:clamp(20px,4vw,40px);text-align:center;opacity:0;transition:opacity .3s}
+  #sun{top:14px;right:16px;max-width:min(300px,60vw);font-size:16px;background:#fff6a8;color:#222;text-shadow:none;
+    border:3px solid #000;border-radius:18px;padding:8px 12px;opacity:0;transition:opacity .4s}
+  #sun::before{content:"☀️ THE SUN SAYS:";display:block;font-weight:bold;font-size:12px}
+  #warning{top:50%;left:50%;transform:translate(-50%,-50%);font-size:clamp(22px,4vw,40px);background:#ffd400;color:#000;
+    text-shadow:none;border:5px solid #000;border-radius:16px;padding:14px 24px;text-align:center;opacity:0;transition:opacity .4s;
+    box-shadow:8px 8px 0 #000}
+  #help{bottom:12px;left:50%;transform:translateX(-50%);font-size:14px;text-align:center;width:90vw}
+  #banana{top:120px;left:16px;font-size:15px}
+  .float{position:fixed;left:0;top:0;pointer-events:none;font-weight:bold;font-size:28px;white-space:nowrap;
+    text-shadow:2px 2px 0 #000,-1px -1px 0 #000;will-change:transform}
+  #start{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(255,80,200,.85);color:#fff;text-align:center;cursor:pointer;padding:16px;box-sizing:border-box;
+    text-shadow:4px 4px 0 #000}
+  #start h1{font-size:clamp(40px,10vw,96px);margin:0;animation:wob 1s ease-in-out infinite}
+  #start p{font-size:clamp(16px,3vw,24px);max-width:640px}
+  .popup{position:fixed;z-index:5;background:#fff;border:3px solid #000;box-shadow:6px 6px 0 #000;border-radius:6px;
+    overflow:hidden;color:#000;font-size:16px;animation:popin .35s cubic-bezier(.3,1.8,.5,1) both;max-width:calc(100vw - 32px);box-sizing:border-box}
+  .popup .bar{display:flex;justify-content:space-between;align-items:center;padding:4px 8px;color:#fff;font-weight:bold;font-size:13px}
+  .popup .x{background:#ff3b3b;border:2px solid #000;border-radius:4px;width:20px;height:20px;line-height:15px;text-align:center;cursor:pointer;color:#fff}
+  .popup .body{padding:10px 12px;text-align:center}
+  .popup .thing{font-size:4em;line-height:1.1;display:block;margin:4px auto}
+  .popup canvas{display:block;margin:4px auto;border:2px solid #000;border-radius:4px;max-width:100%}
+  .popup.bye{animation:popout .25s ease-in both}
+  .cat{display:block;margin:0 auto;width:60%;max-width:200px;overflow:visible}
+  .cat .sway{transform-origin:60px 135px;animation:catsway .5s ease-in-out infinite alternate}
+  .cat .head{transform-origin:60px 70px;animation:catbob .25s ease-in-out infinite alternate}
+  .cat .armL{transform-origin:44px 86px;animation:armL .25s ease-in-out infinite alternate}
+  .cat .armR{transform-origin:76px 86px;animation:armR .25s ease-in-out infinite alternate-reverse}
+  .cat .legL{transform-origin:50px 118px;animation:legkick .5s ease-in-out infinite alternate}
+  .cat .legR{transform-origin:70px 118px;animation:legkick .5s ease-in-out infinite alternate-reverse}
+  .cat .tail{transform-origin:78px 110px;animation:tail .35s ease-in-out infinite alternate}
+  .cat .note{animation:note 1s linear infinite}
+  .cat .note.n2{animation-delay:.5s}
+  @keyframes catsway{from{transform:rotate(-14deg)}to{transform:rotate(14deg)}}
+  @keyframes catbob{from{transform:translateY(0) rotate(-8deg)}to{transform:translateY(-5px) rotate(8deg)}}
+  @keyframes armL{from{transform:rotate(20deg)}to{transform:rotate(130deg)}}
+  @keyframes armR{from{transform:rotate(-20deg)}to{transform:rotate(-130deg)}}
+  @keyframes legkick{from{transform:rotate(-10deg)}to{transform:rotate(25deg)}}
+  @keyframes tail{from{transform:rotate(-25deg)}to{transform:rotate(30deg)}}
+  @keyframes note{from{transform:translate(0,0);opacity:1}to{transform:translate(8px,-30px);opacity:0}}
+  @keyframes popin{from{transform:scale(0) rotate(var(--r))}to{transform:scale(1) rotate(var(--r))}}
+  @keyframes popout{to{transform:scale(0) rotate(180deg);opacity:0}}
+  @keyframes wob{0%,100%{transform:rotate(-3deg) scale(1)}50%{transform:rotate(3deg) scale(1.06)}}
+</style>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}</script>
+</head>
+<body>
+<div id="score" class="hud">Flop Points: 0</div>
+<div id="objective" class="hud"></div>
+<div id="banana" class="hud"></div>
+<div id="event" class="hud"></div>
+<div id="toast" class="hud"></div>
+<div id="sun" class="hud"></div>
+<div id="warning" class="hud">⚠️ WARNING ⚠️<br>This is a message</div>
+<div id="help" class="hud">WASD: wobble &nbsp;·&nbsp; SPACE: FLOP &nbsp;·&nbsp; E: HONK &nbsp;·&nbsp; Q (hold): give up &nbsp;·&nbsp; Click: lock mouse (Esc to free) · Mouse / ←→: camera &nbsp;·&nbsp; R: reset dignity</div>
+<div id="start">
+  <h1>FLOP SIMULATOR</h1>
+  <p>You are Gerald. Gerald has no bones.<br>Gerald must complete tasks. The tasks make no sense.<br>The sun is watching.</p>
+  <p style="font-size:30px">👉 CLICK TO BEGIN FLOPPING 👈</p>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ---------- setup ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9ad8ff);
+scene.fog = new THREE.Fog(0x9ad8ff, 70, 220);
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 600);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x88cc66, 0.9));
+const sunLight = new THREE.DirectionalLight(0xffffff, 1.4);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048, 2048);
+Object.assign(sunLight.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 1, far: 120 });
+scene.add(sunLight, sunLight.target);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const mat = (c, extra = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.6, ...extra });
+
+// ---------- world ----------
+{
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d');
+  x.fillStyle = '#7ed957'; x.fillRect(0, 0, 64, 64);
+  x.fillStyle = '#6cc644'; x.fillRect(0, 0, 32, 32); x.fillRect(32, 32, 32, 32);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(100, 100);
+  tex.magFilter = THREE.NearestFilter;
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), mat(0xffffff, { map: tex }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+}
+// lollipop trees
+const trees = [];
+for (let i = 0; i < 70; i++) {
+  const a = rand(0, Math.PI * 2), d = rand(14, 160);
+  const g = new THREE.Group();
+  const h = rand(3, 8);
+  const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, h, 6), mat(0xffffff));
+  stick.position.y = h / 2;
+  const pop = new THREE.Mesh(new THREE.SphereGeometry(rand(1.2, 2.5), 16, 12),
+    mat(new THREE.Color().setHSL(Math.random(), 0.9, 0.6)));
+  pop.position.y = h; pop.scale.z = 0.4;
+  pop.rotation.y = rand(0, 6);
+  stick.castShadow = pop.castShadow = true;
+  g.add(stick, pop); g.position.set(Math.cos(a) * d, 0, Math.sin(a) * d);
+  trees.push({ x: g.position.x, z: g.position.z, h });
+  scene.add(g);
+}
+// the sun, who has a face
+const sunMesh = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d');
+  x.fillStyle = '#ffe23a'; x.fillRect(0, 0, 256, 256);
+  x.fillStyle = '#000';
+  x.beginPath(); x.arc(90, 100, 18, 0, 7); x.arc(166, 100, 18, 0, 7); x.fill();
+  x.lineWidth = 10; x.beginPath(); x.arc(128, 140, 50, 0.2, Math.PI - 0.2); x.stroke();
+  x.fillStyle = '#ff7a9a'; x.beginPath(); x.arc(60, 150, 16, 0, 7); x.arc(196, 150, 16, 0, 7); x.fill();
+  const m = new THREE.Mesh(new THREE.CircleGeometry(18, 32),
+    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), fog: false }));
+  scene.add(m); return m;
+})();
+
+// ---------- audio ----------
+let AC;
+const ac = () => (AC ||= new (window.AudioContext || window.webkitAudioContext)());
+function tone(f1, f2, dur, type = 'sine', vol = 0.2, delay = 0) {
+  const a = ac(), t = a.currentTime + delay;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+const sfx = {
+  honk: () => { tone(330, 300, 0.4, 'sawtooth', 0.12); tone(415, 385, 0.4, 'square', 0.06); },
+  boing: () => tone(rand(120, 180), rand(600, 900), 0.28, 'sine', 0.25),
+  quack: () => { tone(900, 350, 0.1, 'square', 0.08); tone(850, 300, 0.12, 'square', 0.08, 0.13); },
+  moo: () => tone(rand(120, 150), 85, 0.9, 'sawtooth', 0.1),
+  ding: () => { [523, 659, 784, 1046].forEach((f, i) => tone(f, f, 0.25, 'triangle', 0.15, i * 0.09)); },
+  bonk: () => tone(200, 60, 0.15, 'triangle', 0.3),
+  boom: () => { tone(140, 25, 1.4, 'sawtooth', 0.35); tone(90, 20, 1.6, 'square', 0.2); tone(1200, 200, 0.5, 'sawtooth', 0.08); },
+  scream: () => tone(1400, 500, 2.4, 'sawtooth', 0.05),
+};
+
+// ---------- floating text ----------
+const floats = [];
+function floatText(txt, pos, color = '#fff', size = 28) {
+  const el = document.createElement('div');
+  el.className = 'float'; el.textContent = txt; el.style.color = color; el.style.fontSize = size + 'px';
+  document.body.appendChild(el);
+  floats.push({ el, pos: pos.clone(), life: 1.4, rot: rand(-20, 20) });
+}
+const projV = new THREE.Vector3();
+function updateFloats(dt) {
+  for (let i = floats.length - 1; i >= 0; i--) {
+    const f = floats[i];
+    f.life -= dt; f.pos.y += dt * 2;
+    if (f.life <= 0) { f.el.remove(); floats.splice(i, 1); continue; }
+    projV.copy(f.pos).project(camera);
+    if (projV.z > 1) { f.el.style.opacity = 0; continue; }
+    const x = (projV.x * 0.5 + 0.5) * innerWidth, y = (-projV.y * 0.5 + 0.5) * innerHeight;
+    const s = 1 + (1.4 - f.life) * 0.4;
+    f.el.style.opacity = Math.min(1, f.life * 2);
+    f.el.style.transform = `translate(${x}px,${y}px) translate(-50%,-50%) rotate(${f.rot}deg) scale(${s})`;
+  }
+}
+
+// ---------- Gerald (verlet noodle man) ----------
+const PDT = 1 / 120;
+let G = 20;
+const P = [];
+function addPoint(x, y, z, r) {
+  const pt = { p: new THREE.Vector3(x, y, z), o: new THREE.Vector3(x, y, z), f: new THREE.Vector3(), r };
+  P.push(pt); return pt;
+}
+const head = addPoint(0, 3.2, 0, 0.55), chest = addPoint(0, 2.4, 0, 0.35), pelvis = addPoint(0, 1.5, 0, 0.35);
+const hL = addPoint(-0.9, 2.2, 0, 0.22), hR = addPoint(0.9, 2.2, 0, 0.22);
+const fL = addPoint(-0.3, 0.3, 0, 0.25), fR = addPoint(0.3, 0.3, 0, 0.25);
+const START = P.map(pt => pt.p.clone());
+const S = [];
+const stick = (a, b, k = 1) => S.push({ a, b, len: a.p.distanceTo(b.p), k });
+stick(head, chest); stick(chest, pelvis); stick(chest, hL); stick(chest, hR);
+stick(pelvis, fL); stick(pelvis, fR); stick(head, pelvis, 0.15); stick(fL, fR, 0.1);
+
+function velOf(pt, out) { return out.subVectors(pt.p, pt.o).divideScalar(PDT); }
+function impulse(pt, v) { pt.o.addScaledVector(v, -PDT); }
+
+// meshes
+const UP = new THREE.Vector3(0, 1, 0), tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3();
+function setLimb(m, a, b, base = 1) {
+  m.position.copy(a).add(b).multiplyScalar(0.5);
+  tmpV.subVectors(b, a); const L = tmpV.length() || 0.001;
+  m.scale.set(1, L / base, 1);
+  m.quaternion.setFromUnitVectors(UP, tmpV.divideScalar(L));
+}
+const shadowy = m => { m.castShadow = true; return m; };
+const headG = new THREE.Group();
+headG.add(shadowy(new THREE.Mesh(new THREE.SphereGeometry(0.55, 24, 16), mat(0xffb36b))));
+const pupils = [];
+for (const s of [-1, 1]) {
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(s < 0 ? 0.2 : 0.26, 16, 12), mat(0xffffff, { roughness: 0.2 }));
+  eye.position.set(s * 0.22, 0.12, 0.42);
+  const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 8), mat(0x000000));
+  pupil.position.z = 0.17; eye.add(pupil); pupils.push(pupil);
+  headG.add(eye);
+}
+const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.05, 8, 16, Math.PI), mat(0xcc0033));
+mouth.position.set(0, -0.18, 0.5); mouth.rotation.z = Math.PI; headG.add(mouth);
+const hat = shadowy(new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.8, 16), mat(0xff00cc)));
+hat.position.y = 0.8; hat.rotation.z = 0.25; headG.add(hat);
+const pom = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), mat(0xffef3a));
+pom.position.y = 0.42; hat.add(pom);
+scene.add(headG);
+
+const torso = shadowy(new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 0.6, 6, 14), mat(0xff3fa4)));
+const arms = [hL, hR].map(() => shadowy(new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 1, 8), mat(0x3f7bff))));
+const legs = [fL, fR].map(() => shadowy(new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 1, 8), mat(0x3f7bff))));
+const hands = [hL, hR].map(() => shadowy(new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 10), mat(0xffffff))));
+const feet = [fL, fR].map(() => {
+  const m = shadowy(new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), mat(0xff2a2a)));
+  m.scale.set(1, 0.7, 1.5); return m;
+});
+scene.add(torso, ...arms, ...legs, ...hands, ...feet);
+
+// ---------- cows ----------
+const cows = [];
+function makeCow() {
+  const g = new THREE.Group();
+  const white = mat(0xffffff), black = mat(0x111111), pink = mat(0xff9fc0);
+  const body = shadowy(new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.95, 0.95), white));
+  g.add(body);
+  for (let i = 0; i < 5; i++) {
+    const spot = new THREE.Mesh(new THREE.BoxGeometry(rand(0.3, 0.6), 0.05, rand(0.3, 0.5)), black);
+    spot.position.set(rand(-0.6, 0.6), 0.48, rand(-0.25, 0.25)); g.add(spot);
+  }
+  const hd = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), white));
+  hd.position.set(1.05, 0.3, 0); g.add(hd);
+  const snout = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.5), pink);
+  snout.position.set(1.4, 0.2, 0); g.add(snout);
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), white);
+    eye.position.set(1.32, 0.45, s * 0.18);
+    const pu = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), black); pu.position.x = 0.07; eye.add(pu);
+    const horn = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.25, 6), mat(0xf5e6b0));
+    horn.position.set(1.0, 0.7, s * 0.22); g.add(eye, horn);
+  }
+  for (const [x, z] of [[0.6, 0.3], [0.6, -0.3], [-0.6, 0.3], [-0.6, -0.3]]) {
+    const leg = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.5, 0.2), white));
+    leg.position.set(x, -0.7, z); g.add(leg);
+  }
+  const a = rand(0, 6.28), d = rand(8, 50);
+  g.position.set(Math.cos(a) * d, COW_Y, Math.sin(a) * d);
+  scene.add(g);
+  cows.push({ g, v: new THREE.Vector3(), spin: new THREE.Vector3(), heading: rand(0, 6.28), t: rand(0, 3), hitCd: 0, id: cows.length });
+}
+const COW_Y = 0.95;
+for (let i = 0; i < 14; i++) makeCow();
+
+// ---------- ducks ----------
+const ducks = [];
+const duckMat = mat(0xffe600), beakMat = mat(0xff8800);
+function makeDuck(pos, falling = false) {
+  const g = new THREE.Group();
+  const b = shadowy(new THREE.Mesh(new THREE.SphereGeometry(0.4, 14, 10), duckMat)); b.scale.set(1.2, 0.9, 1);
+  const h = shadowy(new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 10), duckMat)); h.position.set(0.3, 0.4, 0);
+  const bk = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.25, 8), beakMat); bk.rotation.z = -Math.PI / 2; bk.position.set(0.6, 0.38, 0);
+  const e = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), mat(0)); e.position.set(0.48, 0.5, 0.12);
+  g.add(b, h, bk, e);
+  if (pos) g.position.copy(pos);
+  else { const a = rand(0, 6.28), d = rand(6, 70); g.position.set(Math.cos(a) * d, 0.4, Math.sin(a) * d); }
+  scene.add(g);
+  ducks.push({ g, vy: 0, falling, phase: rand(0, 6) });
+}
+for (let i = 0; i < 16; i++) makeDuck();
+
+// ---------- The Cube ----------
+const cube = new THREE.Group();
+cube.position.set(18, 3, -14);
+const cubeBody = shadowy(new THREE.Mesh(new THREE.BoxGeometry(6, 6, 6), mat(0xff7ad9)));
+cube.add(cubeBody);
+const cubePupils = [];
+for (const s of [-1, 1]) {
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.9, 20, 14), mat(0xffffff, { roughness: 0.2 }));
+  eye.position.set(s * 1.4, 1, 3); eye.scale.z = 0.4;
+  const pu = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 8), mat(0)); pu.position.z = 0.75;
+  eye.add(pu); cubePupils.push(pu); cubeBody.add(eye);
+}
+const brow = new THREE.Mesh(new THREE.BoxGeometry(4, 0.3, 0.3), mat(0x331122));
+brow.position.set(0, 2.3, 3.05); brow.rotation.z = 0.15; cubeBody.add(brow);
+scene.add(cube);
+
+// ---------- Banana of Destiny ----------
+const banana = new THREE.Group();
+const banMesh = shadowy(new THREE.Mesh(new THREE.TorusGeometry(1, 0.32, 12, 24, Math.PI * 0.8), mat(0xffe135, { emissive: 0x554400 })));
+banana.add(banMesh);
+const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 80, 12, 1, true),
+  new THREE.MeshBasicMaterial({ color: 0xffff66, transparent: true, opacity: 0.25, depthWrite: false }));
+beam.position.y = 40; banana.add(beam);
+scene.add(banana);
+function moveBanana() {
+  const a = rand(0, 6.28), d = rand(30, 70);
+  banana.position.set(head.p.x + Math.cos(a) * d, 1.5, head.p.z + Math.sin(a) * d);
+}
+moveBanana();
+
+// ---------- honk rings ----------
+const rings = [];
+function honkRing(pos) {
+  const m = new THREE.Mesh(new THREE.TorusGeometry(1, 0.08, 6, 32),
+    new THREE.MeshBasicMaterial({ color: 0xffef3a, transparent: true }));
+  m.position.copy(pos); m.rotation.x = Math.PI / 2; scene.add(m); rings.push({ m, t: 0 });
+}
+
+// ---------- input ----------
+const keys = {};
+let started = false;
+addEventListener('keydown', e => {
+  if (!started) return;
+  const k = e.key.toLowerCase();
+  if (e.code === 'Space') { e.preventDefault(); if (!keys.space) flop(); keys.space = true; return; }
+  if (k === 'e' && !keys.e) honk();
+  if (k === 'r' && !keys.r) resetDignity();
+  keys[k] = true;
+});
+addEventListener('keyup', e => {
+  if (e.code === 'Space') keys.space = false;
+  keys[e.key.toLowerCase()] = false;
+});
+let yaw = 0, pitch = 0.38;
+const lockMouse = () => { if (document.pointerLockElement !== renderer.domElement) renderer.domElement.requestPointerLock?.(); };
+renderer.domElement.addEventListener('click', lockMouse);
+addEventListener('mousemove', e => {
+  if (document.pointerLockElement !== renderer.domElement) return;
+  yaw -= e.movementX * 0.006;
+  pitch = THREE.MathUtils.clamp(pitch + e.movementY * 0.004, 0.05, 1.2);
+});
+
+// ---------- game state ----------
+let score = 0, flops = 0, ducksGot = 0, apologized = false, limpTimer = 0, flopCd = 0;
+let honks = 0, cowBonks = 0, airDucks = 0, sunSpoke = 0;
+let reversed = false, stampede = false, bigHead = false;
+const honkedCows = new Set();
+const scoreEl = document.getElementById('score'), objEl = document.getElementById('objective');
+const eventEl = document.getElementById('event'), toastEl = document.getElementById('toast');
+const sunEl = document.getElementById('sun'), banEl = document.getElementById('banana');
+function addScore(n) { score += n; scoreEl.textContent = `Flop Points: ${score}`; }
+
+const FLOP_WORDS = ['FLOP!', 'SPLORF', 'BWOMP', 'yeet', '*noodle noises*', 'WAHOO', 'blorp', 'SCHLOOP', 'oh no'];
+function flop() {
+  if (flopCd > 0) return;
+  flopCd = 0.35; limpTimer = 0.8; flops++;
+  const md = moveDir();
+  for (const pt of P) impulse(pt, tmpV.set(rand(-3, 3) + md.x * 7, 10 + rand(-1, 3), rand(-3, 3) + md.z * 7));
+  impulse(head, tmpV.set(rand(-7, 7), 2, rand(-7, 7)));
+  impulse(fL, tmpV.set(rand(-6, 6), -3, rand(-6, 6)));
+  sfx.boing(); addScore(1);
+  floatText(pick(FLOP_WORDS), head.p, pick(['#ffef3a', '#7fffd4', '#ff8af0', '#fff']));
+}
+
+const CUBE_APOLOGY = ['...fine.', 'apology noted. go away.', 'you hurt my corners.', 'I forgive you. I shouldn\'t.', 'whatever, Gerald.'];
+function honk() {
+  honks++; sfx.honk(); honkRing(chest.p);
+  floatText('HONK', chest.p, '#ffef3a', 34);
+  for (const c of cows) {
+    const d = c.g.position.distanceTo(chest.p);
+    if (d < 7) {
+      tmpV.subVectors(c.g.position, chest.p).setY(0).normalize();
+      c.v.addScaledVector(tmpV, 10).y += 15;
+      c.spin.set(rand(-8, 8), rand(-8, 8), rand(-8, 8));
+      honkedCows.add(c.id); moo(c);
+    }
+  }
+  if (cube.position.distanceTo(chest.p) < 8) {
+    if (!apologized) { apologized = true; floatText(pick(CUBE_APOLOGY), tmpV2.copy(cube.position).setY(7.5), '#ff7ad9', 26); }
+  }
+}
+let mooCd = 0;
+function moo(c) {
+  if (mooCd > 0) return; mooCd = 0.4;
+  sfx.moo(); floatText(pick(['MOO', 'MOOOO', 'moo?', 'M O O', 'mrrrooo', 'why']), c.g.position, '#fff');
+}
+function resetDignity() {
+  P.forEach((pt, i) => { pt.p.copy(START[i]); pt.o.copy(START[i]); });
+  floatText('dignity restored (temporarily)', head.p, '#aaffaa', 20);
+}
+
+function moveDir() {
+  const f = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)), r = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+  const d = new THREE.Vector3();
+  if (keys.w) d.add(f); if (keys.s) d.sub(f); if (keys.d) d.add(r); if (keys.a) d.sub(r);
+  if (d.lengthSq()) d.normalize();
+  if (reversed) d.negate();
+  return d;
+}
+
+// ---------- physics ----------
+const tLocal = new THREE.Vector3();
+let simTime = 0, cubeBumpCd = 0;
+function physStep(dt) {
+  simTime += dt;
+  const md = moveDir(), moving = md.lengthSq() > 0;
+  const grounded = P.some(pt => pt.p.y < pt.r + 0.1);
+  const limp = keys.q || limpTimer > 0;
+  for (const pt of P) pt.f.set(0, -G, 0);
+  if (!limp) {
+    head.f.y += G * 1.6; chest.f.y += G * 0.8; fL.f.y -= 8; fR.f.y -= 8;
+  }
+  if (moving) {
+    const push = grounded ? 38 : 10;
+    for (const pt of [chest, pelvis, head]) pt.f.addScaledVector(md, push);
+    const s = Math.sin(simTime * 14);
+    fL.f.y += Math.max(0, s) * 70; fR.f.y += Math.max(0, -s) * 70;
+    fL.f.addScaledVector(md, Math.max(0, s) * 40); fR.f.addScaledVector(md, Math.max(0, -s) * 40);
+    for (const h of [hL, hR]) h.f.add(tmpV.set(rand(-80, 80), rand(-20, 90), rand(-80, 80)));
+  }
+  // integrate
+  for (const pt of P) {
+    const vx = (pt.p.x - pt.o.x) * 0.995, vy = (pt.p.y - pt.o.y) * 0.995, vz = (pt.p.z - pt.o.z) * 0.995;
+    pt.o.copy(pt.p);
+    pt.p.x += vx + pt.f.x * dt * dt; pt.p.y += vy + pt.f.y * dt * dt; pt.p.z += vz + pt.f.z * dt * dt;
+    if (pt.p.y < pt.r) {  // ground + friction
+      pt.p.y = pt.r;
+      pt.o.x = pt.p.x - (pt.p.x - pt.o.x) * 0.8; pt.o.z = pt.p.z - (pt.p.z - pt.o.z) * 0.8;
+      if (pt.o.y < pt.p.y) pt.o.y = pt.p.y - (pt.o.y - pt.p.y) * 0.2; // tiny bounce
+    }
+  }
+  // constraints
+  cube.updateMatrixWorld();
+  for (let it = 0; it < 6; it++) {
+    for (const s of S) {
+      tmpV.subVectors(s.b.p, s.a.p);
+      const d = tmpV.length() || 0.0001, diff = (d - s.len) / d * 0.5 * s.k;
+      s.a.p.addScaledVector(tmpV, diff); s.b.p.addScaledVector(tmpV, -diff);
+    }
+    for (const pt of P) {
+      if (pt.p.y < pt.r) pt.p.y = pt.r;
+      // cube collision (in cube space)
+      tLocal.copy(pt.p); cube.worldToLocal(tLocal);
+      const h = 3 + pt.r;
+      if (Math.abs(tLocal.x) < h && Math.abs(tLocal.y) < h && Math.abs(tLocal.z) < h) {
+        const dx = h - Math.abs(tLocal.x), dy = h - Math.abs(tLocal.y), dz = h - Math.abs(tLocal.z);
+        if (dx < dy && dx < dz) tLocal.x = Math.sign(tLocal.x) * h;
+        else if (dy < dz) tLocal.y = Math.sign(tLocal.y) * h;
+        else tLocal.z = Math.sign(tLocal.z) * h;
+        pt.p.copy(cube.localToWorld(tLocal));
+        if (cubeBumpCd <= 0 && pt === head) {
+          cubeBumpCd = 1.5; sfx.bonk();
+          floatText(pick(['OW', 'rude.', 'personal space!!', 'I am a CUBE', 'ugh']), tmpV2.copy(cube.position).setY(7.5), '#ff7ad9', 24);
+        }
+      }
+    }
+  }
+}
+
+// ---------- objectives ----------
+const isGrounded = () => P.some(pt => pt.p.y < pt.r + 0.15);
+const cubeLocal = v => cube.worldToLocal(tLocal.copy(v));
+const OBJ = [
+  { t: 'Collect 3 rubber ducks. <b>They know what you did.</b>', init() { this.b = ducksGot; }, check() { return ducksGot - this.b >= 3; } },
+  { t: 'Launch a cow into <b>ORBIT</b> (12m counts as orbit, we checked)', check() { return cows.some(c => c.g.position.y > 12); } },
+  { t: 'Go <b>apologize to the Cube</b> (honk near it). You know why.', init() { apologized = false; }, check() { return apologized; } },
+  { t: 'Lie on the floor and <b>think about your choices</b> (3 sec)', init() { this.a = 0; }, check(dt) { if (head.p.y < 0.9) this.a += dt; return this.a > 3; } },
+  { t: 'Find the <b>Banana of Destiny</b> 🍌', banana: true, init() { moveBanana(); }, check() { return banana.position.distanceTo(chest.p) < 3; }, done() { moveBanana(); } },
+  { t: 'Get your head <b>10 meters into the sky</b>. Why? Don\'t ask.', check() { return head.p.y > 10; } },
+  { t: '<b>Flop 7 times.</b> Express yourself.', init() { this.b = flops; }, check() { return flops - this.b >= 7; } },
+  { t: '<b>Honk at 3 different cows.</b> They deserve it.', init() { honkedCows.clear(); }, check() { return honkedCows.size >= 3; } },
+  { t: '<b>Stand on top of the Cube.</b> Assert dominance.', check() {
+      const l = cubeLocal(pelvis.p); return Math.abs(l.x) < 3.3 && Math.abs(l.z) < 3.3 && pelvis.p.y > 6.2; } },
+  { t: '<b>Hug a lollipop tree.</b> It\'s been a long day for it.', init() { this.a = 0; }, check(dt) {
+      const hugging = trees.some(tr => [hL, hR, chest].some(pt => Math.hypot(pt.p.x - tr.x, pt.p.z - tr.z) < 0.7 && pt.p.y < tr.h));
+      if (hugging) this.a += dt; return this.a > 1; } },
+  { t: '<b>Do a headstand</b> (head below feet, 1.5 sec total). Hold Q to help.', init() { this.a = 0; }, check(dt) {
+      if (head.p.y < Math.min(fL.p.y, fR.p.y) - 0.2) this.a += dt; return this.a > 1.5; } },
+  { t: '<b>Bonk 5 cows</b> with your beautiful body', init() { this.b = cowBonks; }, check() { return cowBonks - this.b >= 5; } },
+  { t: '<b>Bring a cow to the Cube.</b> They need to talk.', check() { return cows.some(c => c.g.position.distanceTo(cube.position) < 6.5); } },
+  { t: 'Get <b>50 meters away from the Cube.</b> It needs space.', check() { return Math.hypot(chest.p.x - cube.position.x, chest.p.z - cube.position.z) > 50; } },
+  { t: '<b>Honk 10 times.</b> Make each one count.', init() { this.b = honks; }, check() { return honks - this.b >= 10; } },
+  { t: 'Spend <b>4 seconds in the air</b> (total). Birds do it.', init() { this.a = 0; }, check(dt) { if (!isGrounded()) this.a += dt; return this.a > 4; } },
+  { t: 'Catch a duck <b>while airborne</b>. Like a hawk. A stupid hawk.', init() { this.b = airDucks; }, check() { return airDucks > this.b; } },
+  { t: '<b>Go limp for 4 seconds</b> (hold Q). Become soup.', init() { this.a = 0; }, check(dt) { if (keys.q) this.a += dt; else this.a = 0; return this.a > 4; } },
+  { t: '<b>Wait for the sun to say something.</b> Listen carefully.', init() { this.b = sunSpoke; }, check() { return sunSpoke > this.b; } },
+];
+const REWARDS = ['a sense of mild confusion', '1 (one) invisible hat', 'the Cube\'s respect (revoked)', 'a coupon for 0% off',
+  'emotional damage', 'nothing. absolutely nothing.', 'a single grape', 'the sun\'s approval ☀️', 'one (1) bone. you dropped it.'];
+let obj = null, objIdx = -1;
+function newObjective() {
+  let i; do i = Math.floor(Math.random() * OBJ.length); while (i === objIdx);
+  objIdx = i; obj = OBJ[i]; obj.init?.();
+  objEl.innerHTML = '🎯 ' + obj.t;
+}
+let toastT = 0;
+function toast(html, t = 2.5) { toastEl.innerHTML = html; toastEl.style.opacity = 1; toastT = t; }
+
+// ---------- chaos events ----------
+const EVENTS = [
+  { n: 'GRAVITY WENT ON VACATION', on() { G = 4; }, off() { G = 20; } },
+  { n: 'IT\'S RAINING DUCKS', on() { for (let i = 0; i < 14; i++) makeDuck(new THREE.Vector3(head.p.x + rand(-12, 12), rand(15, 35), head.p.z + rand(-12, 12)), true); } },
+  { n: 'COW STAMPEDE', dur: 7.5, on() { this.acc = 0; for (let i = 0; i < 35; i++) spawnStampedeCow(); },
+    tick(dt) {
+      this.acc += dt;
+      while (this.acc >= 1 / 14) { this.acc -= 1 / 14; spawnStampedeCow(); }
+      if (Math.random() < dt * 8) tone(rand(50, 70), 30, 0.25, 'sawtooth', 0.12); // rumble
+    } },
+  { n: 'CONTROLS REVERSED (sorry)', on() { reversed = true; }, off() { reversed = false; } },
+  { n: 'BIG HEAD MODE', on() { bigHead = true; }, off() { bigHead = false; } },
+  { n: 'THE SUN IS FALLING FROM THE SKY', on() { startSunFall(); } },
+  { n: 'CELEBRITY', dur: 7.5, on() { this.acc = 0; spawnPopup(); },
+    tick(dt) { this.acc += dt; while (this.acc >= 0.2) { this.acc -= 0.2; spawnPopup(); } } },
+];
+let eventT = 18, activeEvent = null, activeT = 0, bannerT = 0;
+function startEvent(prefix = '') {
+  if (activeEvent) { activeEvent.off?.(); activeEvent = null; }   // only one chaos at a time
+  activeEvent = pick(EVENTS); activeEvent.on(); activeT = activeEvent.dur ?? 7; eventT = rand(20, 30);
+  eventEl.textContent = prefix + '⚠️ ' + activeEvent.n + ' ⚠️'; eventEl.style.opacity = 1; bannerT = 2.5;
+  sfx.honk();
+}
+const SUN_QUOTES = ['I am the sun. I have no idea what you\'re doing.', 'That cow had a family.', 'Have you tried being a bean?',
+  'I\'m not hot, you\'re just close.', 'Flop responsibly.', 'The ducks are planning something.', 'Your knees are imaginary.',
+  'This is my favorite episode.', 'Gerald, your mother called.', 'I could explode at any moment. Just saying.',
+  'The Cube talks about you when you\'re not around.', 'Bones are a social construct.', 'wow. just wow.'];
+let sunT = 6, sunShowT = 0;
+
+// ---------- update world ----------
+function updateCows(dt) {
+  mooCd -= dt;
+  for (const c of cows) {
+    const p = c.g.position;
+    c.hitCd -= dt;
+    c.v.y -= G * 0.5 * dt;
+    p.addScaledVector(c.v, dt);
+    const onGround = p.y <= COW_Y + 0.01;
+    if (p.y < COW_Y) {
+      p.y = COW_Y;
+      if (c.v.y < -4) { c.v.y *= -0.45; c.spin.multiplyScalar(0.5); moo(c); } else c.v.y = 0;
+    }
+    if (onGround) {
+      c.v.x *= Math.pow(0.04, dt); c.v.z *= Math.pow(0.04, dt);
+      c.g.rotation.x *= 0.85; c.g.rotation.z *= 0.85; c.spin.set(0, 0, 0);
+      c.t -= dt;
+      if (stampede) c.heading = Math.atan2(-(chest.p.z - p.z), chest.p.x - p.x);
+      else if (c.t < 0) { c.t = rand(1, 4); c.heading = rand(0, 6.28); }
+      const sp = stampede ? 9 : 1.4;
+      p.x += Math.cos(c.heading) * sp * dt; p.z -= Math.sin(c.heading) * sp * dt;
+      c.g.rotation.y += (c.heading - c.g.rotation.y) * 0.1;
+      p.y = COW_Y + Math.abs(Math.sin(simTime * (stampede ? 18 : 8) + c.id)) * 0.15;
+    } else {
+      c.g.rotation.x += c.spin.x * dt; c.g.rotation.y += c.spin.y * dt; c.g.rotation.z += c.spin.z * dt;
+    }
+    // Gerald bonks cows
+    if (c.hitCd <= 0) for (const pt of P) {
+      if (pt.p.distanceTo(p) < 1.2 + pt.r) {
+        const v = velOf(pt, tmpV2);
+        if (v.length() < 2) continue;
+        c.v.addScaledVector(v, 1.1); c.v.y += 8;
+        c.spin.set(rand(-10, 10), rand(-10, 10), rand(-10, 10));
+        c.hitCd = 0.4; moo(c); addScore(5); cowBonks++;
+        break;
+      }
+    }
+  }
+}
+function updateDucks(dt) {
+  for (let i = ducks.length - 1; i >= 0; i--) {
+    const d = ducks[i];
+    if (d.falling) {
+      d.vy -= G * 0.5 * dt; d.g.position.y += d.vy * dt; d.g.rotation.x += dt * 5;
+      if (d.g.position.y < 0.4) { d.g.position.y = 0.4; d.falling = false; d.g.rotation.x = 0; sfx.quack(); }
+    } else {
+      d.g.position.y = 0.4 + Math.abs(Math.sin(simTime * 3 + d.phase)) * 0.3;
+      d.g.rotation.y += dt * 1.5;
+    }
+    if (P.some(pt => pt.p.distanceTo(d.g.position) < 1.1 + pt.r * 0.5)) {
+      sfx.quack(); floatText(pick(['QUACK', '+1 duck', 'duck acquired', 'quack?!']), d.g.position, '#ffe600');
+      scene.remove(d.g); ducks.splice(i, 1); ducksGot++; if (!isGrounded()) airDucks++; addScore(10);
+      if (ducks.length < 16) makeDuck();
+    }
+  }
+}
+
+// ---------- the sun falls (it happens) ----------
+let sunFall = null, shakeT = 0;
+const skyPos = new THREE.Vector3();
+function startSunFall() {
+  if (sunFall) return;
+  sunFall = { phase: 'fall', t: 0, hit: new THREE.Vector3() };
+  sfx.scream();
+  sunEl.textContent = 'AAAAAAAAAAAAAAAAAAAAA'; sunEl.style.opacity = 1; sunShowT = 3;
+}
+function sunImpact() {
+  sfx.boom(); shakeT = 0.8; limpTimer = 2;
+  for (const pt of P) impulse(pt, tmpV.set(rand(-14, 14), rand(30, 40), rand(-14, 14)));
+  for (const c of cows) if (c.g.position.distanceTo(chest.p) < 14) {
+    c.v.add(tmpV.set(rand(-10, 10), rand(15, 25), rand(-10, 10))); c.spin.set(rand(-10, 10), rand(-10, 10), rand(-10, 10));
+  }
+  honkRing(chest.p); honkRing(chest.p.clone().setY(1));
+  floatText('☀️ SUN\'D ☀️', chest.p, '#ffe23a', 44);
+  addScore(50);
+  sunEl.textContent = pick(['my bad.', 'oops. that was me.', 'I slipped.', 'you\'re welcome.', 'that was on purpose.']);
+  sunEl.style.opacity = 1; sunShowT = 4;
+}
+function updateSun(dt) {
+  skyPos.set(camera.position.x - 80, 90, camera.position.z - 160);
+  if (!sunFall) {
+    sunMesh.position.copy(skyPos); sunMesh.scale.setScalar(1);
+    sunMesh.lookAt(camera.position); sunMesh.rotation.z = Math.sin(simTime) * 0.2;
+    return;
+  }
+  sunFall.t += dt;
+  if (sunFall.phase === 'fall') {
+    const k = Math.min(sunFall.t / 2.5, 1), e = k * k * k;
+    sunMesh.position.lerpVectors(skyPos, chest.p, e);   // it's homing. of course it's homing.
+    sunMesh.scale.setScalar(1 - e * 0.8);
+    sunMesh.lookAt(camera.position); sunMesh.rotateZ(sunFall.t * 10);
+    if (k >= 1) { sunFall.hit.copy(chest.p); sunImpact(); sunFall.phase = 'rise'; sunFall.t = 0; }
+  } else {
+    const k = Math.min(sunFall.t / 2.5, 1), e = k * k * (3 - 2 * k);
+    sunMesh.position.lerpVectors(sunFall.hit, skyPos, e);
+    sunMesh.scale.setScalar(0.2 + 0.8 * e);
+    sunMesh.lookAt(camera.position); sunMesh.rotation.z = Math.sin(simTime * 6) * 0.4;
+    if (k >= 1) sunFall = null;
+  }
+}
+
+// ---------- random popups (15% chance per second) ----------
+const POP_TITLES = ['IMPORTANT.exe', 'Message from a Cow', 'DUCK ALERT', 'notice', 'you have 1 new bone', 'The Cube (private)',
+  'system32 is sad', 'Gerald.txt', 'URGENT (not urgent)', 'Totally Normal Popup', 'sun_thoughts.doc', 'ERROR: no', '!!!!!!!'];
+const POP_MSGS = ['Your toast is ready.', 'A duck has filed a complaint.', 'Did you know? Cows can\'t read.', 'You have won 0 dollars!!',
+  'Please stop.', 'This popup has no purpose.', 'Your legs have been updated to version 2.0', 'Click OK to continue (there is no OK)',
+  'A bean is thinking of you.', 'Warning: you are too floppy.', 'Have you hydrated your noodle today?', 'Loading bones... 0%',
+  'Gerald, the fridge is running.', 'Your pizza is in another castle... no wait wrong game', 'This is a message',
+  'The ducks have unionized.', 'Error 404: Dignity not found.', 'I am a popup. Fear me.', 'Look behind you. Not now. Later.',
+  'Free cow! (cow not included)', 'Your free trial of gravity is ending soon.', 'sneeze detected', 'banana.', 'wiggle.'];
+const POP_THINGS = ['🦆', '🐄', '🍌', '🧀', '🥔', '🦴', '🪑', '🧦', '🍞', '🐸', '👁️', '🦐', '🎺', '🗿', '🥒', '🌭', '🧻', '🪣', '🫠', '🤠', '💅', '🐌'];
+function drawDoodle(cv) {
+  const x = cv.getContext('2d'), w = cv.width, h = cv.height;
+  x.fillStyle = `hsl(${rand(0, 360)},90%,85%)`; x.fillRect(0, 0, w, h);
+  const kind = Math.floor(rand(0, 3));
+  if (kind === 0) { // a face that is concerned
+    x.fillStyle = `hsl(${rand(0, 360)},90%,60%)`; x.beginPath(); x.arc(w / 2, h / 2, h * 0.38, 0, 7); x.fill();
+    x.fillStyle = '#fff'; x.beginPath(); x.arc(w / 2 - 18, h / 2 - 8, rand(6, 14), 0, 7); x.arc(w / 2 + 18, h / 2 - 8, rand(6, 14), 0, 7); x.fill();
+    x.fillStyle = '#000'; x.beginPath(); x.arc(w / 2 - 18 + rand(-3, 3), h / 2 - 8, 4, 0, 7); x.arc(w / 2 + 18 + rand(-3, 3), h / 2 - 8, 4, 0, 7); x.fill();
+    x.lineWidth = 4; x.beginPath(); x.moveTo(w / 2 - 15, h / 2 + 18); x.bezierCurveTo(w / 2 - 5, h / 2 + rand(5, 30), w / 2 + 5, h / 2 + rand(5, 30), w / 2 + 15, h / 2 + 18); x.stroke();
+  } else if (kind === 1) { // a very important chart
+    x.strokeStyle = '#000'; x.lineWidth = 3; x.beginPath(); x.moveTo(10, 10); x.lineTo(10, h - 10); x.lineTo(w - 10, h - 10); x.stroke();
+    x.strokeStyle = '#e00'; x.beginPath(); x.moveTo(14, rand(10, h - 20));
+    for (let i = 1; i <= 8; i++) x.lineTo(14 + i * (w - 28) / 8, rand(10, h - 14)); x.stroke();
+    x.fillStyle = '#000'; x.font = 'bold 11px sans-serif'; x.fillText(pick(['BEANS', 'COWS/HR', 'VIBES', 'DUCK PRICE']), 16, 22);
+  } else { // modern art
+    for (let i = 0; i < 12; i++) {
+      x.fillStyle = `hsla(${rand(0, 360)},90%,55%,.8)`; x.beginPath();
+      if (Math.random() < 0.5) x.arc(rand(0, w), rand(0, h), rand(5, 25), 0, 7); else x.rect(rand(0, w), rand(0, h), rand(10, 40), rand(10, 40));
+      x.fill();
+    }
+  }
+}
+const CAT_SVG = `<svg class="cat" viewBox="0 0 120 145" aria-label="a cat, dancing">
+  <text class="note" x="8" y="40" font-size="18">♪</text><text class="note n2" x="96" y="30" font-size="18">♫</text>
+  <g class="sway">
+    <path class="tail" d="M78 112 Q105 105 100 80 Q98 70 106 64" stroke="#f08a24" stroke-width="8" fill="none" stroke-linecap="round"/>
+    <rect class="legL" x="44" y="112" width="11" height="26" rx="5" fill="#f08a24" stroke="#000" stroke-width="2"/>
+    <rect class="legR" x="65" y="112" width="11" height="26" rx="5" fill="#f08a24" stroke="#000" stroke-width="2"/>
+    <ellipse cx="60" cy="100" rx="22" ry="25" fill="#f8a03c" stroke="#000" stroke-width="2.5"/>
+    <ellipse cx="60" cy="104" rx="12" ry="15" fill="#ffe2b8"/>
+    <rect class="armL" x="20" y="81" width="26" height="10" rx="5" fill="#f08a24" stroke="#000" stroke-width="2"/>
+    <rect class="armR" x="74" y="81" width="26" height="10" rx="5" fill="#f08a24" stroke="#000" stroke-width="2"/>
+    <g class="head">
+      <path d="M40 38 L44 14 L58 32 Z M80 38 L76 14 L62 32 Z" fill="#f8a03c" stroke="#000" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M45 32 L46 21 L53 30 Z M75 32 L74 21 L67 30 Z" fill="#ff9fc0"/>
+      <circle cx="60" cy="50" r="24" fill="#f8a03c" stroke="#000" stroke-width="2.5"/>
+      <path d="M50 30 L52 38 M60 28 L60 37 M70 30 L68 38" stroke="#c86a10" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M44 48 Q50 42 56 48" stroke="#000" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M64 48 Q70 42 76 48" stroke="#000" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M57 55 L63 55 L60 59 Z" fill="#ff6f9f"/>
+      <path d="M52 60 Q56 66 60 60 Q64 66 68 60" stroke="#000" stroke-width="2" fill="#ff6f9f"/>
+      <path d="M38 54 L28 52 M38 58 L28 60 M82 54 L92 52 M82 58 L92 60" stroke="#000" stroke-width="1.5"/>
+      <ellipse cx="45" cy="57" rx="4" ry="2.5" fill="#ff9fc0" opacity=".8"/><ellipse cx="75" cy="57" rx="4" ry="2.5" fill="#ff9fc0" opacity=".8"/>
+    </g>
+  </g></svg>`;
+const CAT_MSGS = ['this cat is dancing for you specifically.', '♪ meow meow meow meow ♪', 'the cat cannot stop. the cat will not stop.',
+  'cat.exe has started dancing and cannot be closed (it can)', 'he has been dancing since 1997.', 'vibe check: PASSED'];
+function catJingle() { [659, 784, 880, 784, 659, 523].forEach((f, i) => tone(f, f * 1.01, 0.12, 'triangle', 0.08, i * 0.13)); }
+function setPopupScale(el, s) {
+  el._scale = s;
+  el.style.fontSize = (14 * s) + 'px';
+  el.style.width = Math.round(el._baseW * s) + 'px';
+  if (el._cv) el._cv.style.width = Math.round(140 * s) + 'px';
+}
+// size of the popup plus how far its rotation + drop shadow stick out past each edge
+function popupBounds(el) {
+  const w = el.offsetWidth, h = el.offsetHeight, a = Math.abs(el._rot) * Math.PI / 180;
+  const bw = w * Math.cos(a) + h * Math.sin(a), bh = w * Math.sin(a) + h * Math.cos(a);
+  return { w, h, padX: (bw - w) / 2 + 12, padY: (bh - h) / 2 + 12 };
+}
+addEventListener('resize', () => {
+  for (const el of document.querySelectorAll('.popup:not(.bye)')) {
+    const b = popupBounds(el);
+    el.style.left = THREE.MathUtils.clamp(parseFloat(el.style.left), b.padX, Math.max(b.padX, innerWidth - b.w - b.padX)) + 'px';
+    el.style.top = THREE.MathUtils.clamp(parseFloat(el.style.top), b.padY, Math.max(b.padY, innerHeight - b.h - b.padY)) + 'px';
+  }
+});
+function spawnPopup() {
+  const el = document.createElement('div');
+  el.className = 'popup';
+  const scale = rand(0.7, 1.6);
+  el.style.fontSize = (14 * scale) + 'px';
+  el.style.width = Math.round(rand(170, 300) * scale) + 'px';
+  const rot = rand(-8, 8);
+  el.style.setProperty('--r', rot + 'deg');
+  el._rot = rot; el._baseW = parseFloat(el.style.width) / scale; el._scale = scale;
+  const bar = document.createElement('div'); bar.className = 'bar';
+  bar.style.background = `hsl(${rand(0, 360)},80%,45%)`;
+  bar.innerHTML = `<span></span><span class="x">×</span>`;
+  bar.firstChild.textContent = pick(POP_TITLES);
+  const body = document.createElement('div'); body.className = 'body';
+  const isCat = Math.random() < 0.15;
+  if (isCat) {
+    bar.firstChild.textContent = '🐱 DANCING_CAT.exe';
+    body.insertAdjacentHTML('beforeend', CAT_SVG);
+  } else if (Math.random() < 0.55) {
+    const t = document.createElement('span'); t.className = 'thing'; t.textContent = pick(POP_THINGS);
+    if (Math.random() < 0.3) t.textContent = t.textContent.repeat(Math.ceil(rand(2, 4)));
+    body.appendChild(t);
+  } else {
+    const cv = document.createElement('canvas'); cv.width = 140; cv.height = 90; drawDoodle(cv);
+    cv.style.width = Math.round(140 * scale) + 'px'; body.appendChild(cv); el._cv = cv;
+  }
+  const msg = document.createElement('div'); msg.textContent = pick(isCat ? CAT_MSGS : POP_MSGS); body.appendChild(msg);
+  el.append(bar, body);
+  document.body.appendChild(el);
+  // shrink until the (rotated) popup fits, then place it fully on screen
+  for (let i = 0; i < 10; i++) {
+    const b = popupBounds(el);
+    if (b.w + 2 * b.padX <= innerWidth && b.h + 2 * b.padY <= innerHeight) break;
+    setPopupScale(el, el._scale * 0.85);
+  }
+  const b = popupBounds(el);
+  el.style.left = rand(b.padX, Math.max(b.padX, innerWidth - b.w - b.padX)) + 'px';
+  el.style.top = rand(b.padY, Math.max(b.padY, innerHeight - b.h - b.padY)) + 'px';
+  const close = () => { if (el.classList.contains('bye')) return; el.classList.add('bye'); setTimeout(() => el.remove(), 260); };
+  bar.querySelector('.x').addEventListener('click', e => { e.stopPropagation(); close(); });
+  setTimeout(close, rand(10000, 12500));
+  if (isCat) catJingle(); else tone(rand(500, 1200), rand(300, 1500), 0.12, 'square', 0.06);
+}
+let popupAcc = 0;
+function updatePopups(dt) {
+  popupAcc += dt;
+  while (popupAcc >= 1) { popupAcc -= 1; if (Math.random() < 0.15) spawnPopup(); }
+}
+
+// ================== COMPLETELY RANDOM AND ABSURD THINGS ==================
+// teleport Gerald (all of him) by an offset
+function teleportGerald(off) { for (const pt of P) { pt.p.add(off); pt.o.add(off); } camTarget.add(off); }
+
+// --- The Couch of Mystery (it moves when nobody is looking) ---
+const couch = new THREE.Group();
+{
+  const red = mat(0xc0392b), cush = mat(0xe74c3c);
+  const base = shadowy(new THREE.Mesh(new THREE.BoxGeometry(4, 0.8, 1.6), red)); base.position.y = 0.4;
+  const back = shadowy(new THREE.Mesh(new THREE.BoxGeometry(4, 1.4, 0.4), red)); back.position.set(0, 1.2, -0.6);
+  const armL = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.1, 1.6), red)); armL.position.set(-2, 0.75, 0);
+  const armR = armL.clone(); armR.position.x = 2;
+  for (const x of [-1, 0, 1]) { const c = shadowy(new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.25, 1.2), cush)); c.position.set(x * 1.3, 0.92, 0.1); couch.add(c); }
+  couch.add(base, back, armL, armR);
+}
+couch.position.set(-12, 0, 8); couch.rotation.y = 0.6; scene.add(couch);
+let couchSit = 0, couchSits = 0, couchMoveT = 40;
+
+// --- The Door to Nowhere (walk through it. go on.) ---
+const door = new THREE.Group();
+{
+  const wood = mat(0x8e5a2b), frameM = mat(0xffffff);
+  const panel = shadowy(new THREE.Mesh(new THREE.BoxGeometry(1.6, 3, 0.15), wood)); panel.position.set(-0.8, 1.5, 0);
+  const pivot = new THREE.Group(); pivot.position.x = 0.8; pivot.add(panel); pivot.rotation.y = -1.1; door.add(pivot);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), mat(0xffd700, { metalness: 0.8 })); knob.position.set(-1.4, 1.5, 0.12); pivot.add(knob);
+  for (const x of [-0.9, 0.9]) { const post = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.2, 0.3), frameM)); post.position.set(x, 1.6, 0); door.add(post); }
+  const top = shadowy(new THREE.Mesh(new THREE.BoxGeometry(2, 0.2, 0.3), frameM)); top.position.y = 3.2; door.add(top);
+}
+door.position.set(6, 0, 18); door.rotation.y = 0.3; scene.add(door);
+let doorCd = 0, doorTrips = 0;
+const DOOR_LINES = ['where am I', 'this is not the kitchen', 'new phone who dis', 'I have been here before', 'wrong door', 'ah yes. a field.'];
+
+// --- Trampolines (scattered randomly, obviously) ---
+const trampolines = [];
+for (let i = 0; i < 5; i++) {
+  const g = new THREE.Group();
+  const matM = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 0.1, 24), mat(0x2266ff)); matM.position.y = 0.8;
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(2, 0.12, 8, 32), mat(0x111111)); rim.rotation.x = Math.PI / 2; rim.position.y = 0.85;
+  for (let k = 0; k < 4; k++) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.8, 6), mat(0x111111));
+    leg.position.set(Math.cos(k * 1.57) * 1.8, 0.4, Math.sin(k * 1.57) * 1.8); g.add(leg); }
+  matM.receiveShadow = true; g.add(matM, rim);
+  const a = i === 0 ? 2.2 : rand(0, 6.28), d = i === 0 ? 9 : rand(15, 60);
+  g.position.set(Math.cos(a) * d, 0, Math.sin(a) * d); scene.add(g);
+  trampolines.push({ g, m: matM, cd: 0, squish: 0 });
+}
+let bounces = 0;
+
+// --- Gary the Toaster (he walks. he shoots toast. he is armed and loving it.) ---
+const toaster = new THREE.Group();
+{
+  const chrome = mat(0xdddddd, { metalness: 0.9, roughness: 0.2 });
+  const body = shadowy(new THREE.Mesh(new THREE.BoxGeometry(2, 1.5, 1.2), chrome)); toaster.add(body);
+  for (const z of [-0.25, 0.25]) { const slot = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.05, 0.18), mat(0x222222)); slot.position.set(0, 0.76, z); toaster.add(slot); }
+  const lever = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.2), mat(0x111111)); lever.position.set(1.05, 0.2, 0); toaster.add(lever);
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), mat(0xffffff)); eye.position.set(s * 0.4, 0.2, 0.6);
+    const pu = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), mat(0)); pu.position.z = 0.17; eye.add(pu); toaster.add(eye);
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.8, 6), mat(0x111111)); leg.position.set(s * 0.6, -1.1, 0); leg.name = 'leg'; toaster.add(leg);
+    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.15, 0.5), mat(0xff2a2a)); shoe.position.set(s * 0.6, -1.5, 0.1); toaster.add(shoe);
+  }
+}
+toaster.position.set(-20, 1.6, -15); scene.add(toaster);
+let toastShootT = 5, toastHits = 0;
+const toasts = [];
+const toastGeo = new THREE.BoxGeometry(0.75, 0.75, 0.15), toastMat = mat(0xd99a4e);
+function shootToast() {
+  const m = shadowy(new THREE.Mesh(toastGeo, toastMat));
+  m.position.copy(toaster.position).y += 1;
+  const T = Math.max(0.6, m.position.distanceTo(chest.p) / 14);
+  const v = new THREE.Vector3().subVectors(chest.p, m.position).divideScalar(T);
+  v.y += 0.5 * G * T;
+  scene.add(m); toasts.push({ m, v, life: 6, hit: false });
+  tone(800, 1600, 0.08, 'square', 0.1); tone(300, 200, 0.1, 'triangle', 0.15, 0.05);
+  floatText(pick(['POP!', 'TOAST INCOMING', 'breakfast!!', 'eat this', 'pew']), toaster.position.clone().setY(3.5), '#ffcc66', 22);
+}
+
+// --- Kevin (a fish. he floats. he follows you. nobody knows why.) ---
+const kevin = new THREE.Group();
+{
+  const orange = mat(0xff8c1a);
+  const body = shadowy(new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 12), orange)); body.scale.set(0.45, 0.7, 1);
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.6, 4), orange); tail.rotation.x = -Math.PI / 2; tail.position.z = -0.65; tail.scale.x = 0.3;
+  tail.name = 'tail';
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), mat(0xffffff)); eye.position.set(s * 0.2, 0.12, 0.3);
+    const pu = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 4), mat(0)); pu.position.x = s * 0.07; eye.add(pu); kevin.add(eye);
+  }
+  const lips = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.04, 6, 12), mat(0xff3b6b)); lips.position.z = 0.5; kevin.add(lips);
+  kevin.add(body, tail);
+}
+kevin.position.set(2, 3, 2); scene.add(kevin);
+const kevinPrev = new THREE.Vector3();
+let kevinTalkT = 8, kevinHonked = 0, lastHonks = 0;
+const KEVIN_LINES = ['blub', 'I\'m Kevin.', 'I don\'t know how I\'m breathing either.', 'the toaster is my dad.', 'blub blub (that means "help")',
+  'I used to be a lawyer.', 'water is a myth', 'Gerald. Gerald. Gerald.', 'I can see your thoughts. they\'re all cows.'];
+
+// --- Giant eyeballs in the sky. They are watching. That's it. That's the feature. ---
+const skyEyes = [];
+for (let i = 0; i < 7; i++) {
+  const g = new THREE.Group();
+  const r = rand(3, 7);
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 16), new THREE.MeshStandardMaterial({ color: 0xffffff, fog: false }));
+  const iris = new THREE.Mesh(new THREE.SphereGeometry(r * 0.45, 16, 12), new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(Math.random(), 0.8, 0.45), fog: false }));
+  iris.position.z = r * 0.7; iris.scale.z = 0.5;
+  const pu = new THREE.Mesh(new THREE.SphereGeometry(r * 0.22, 12, 8), new THREE.MeshBasicMaterial({ color: 0x000000, fog: false }));
+  pu.position.z = r * 0.25; iris.add(pu);
+  g.add(ball, iris);
+  const a = rand(0, 6.28), d = rand(70, 130);
+  g.position.set(Math.cos(a) * d, rand(30, 60), Math.sin(a) * d); scene.add(g);
+  skyEyes.push({ g, blink: rand(2, 8) });
+}
+
+// --- Gerald's inner monologue ---
+let thoughtT = 12;
+const THOUGHTS = ['I miss my bones.', 'what is a leg', 'am I the duck?', 'I left the oven on (I don\'t have an oven)', 'hello?',
+  'is the cube single', 'I am 40% noodle', 'my hat is load-bearing', 'I should call my mom', 'every day I flop', 'why is there a fish'];
+
+// --- chaos state ---
+let disco = false, discoBeat = 0, pancake = false, rollMode = null, camRoll = 0, cowsFly = false, duckArmy = false;
+const SKY = new THREE.Color(0x9ad8ff);
+EVENTS.push(
+  { n: 'DISCO TIME', on() { disco = true; }, off() { disco = false; scene.background.copy(SKY); scene.fog.color.copy(SKY); } },
+  { n: 'THE WORLD IS A PANCAKE NOW', on() { pancake = true; }, off() { pancake = false; } },
+  { n: 'EVERYTHING IS SPINNING', on() { rollMode = 'spin'; }, off() { rollMode = null; } },
+  { n: 'AUSTRALIA MODE', on() { rollMode = 'flip'; }, off() { rollMode = null; } },
+  { n: 'COWS LEARNED TO FLY', on() { cowsFly = true; }, off() { cowsFly = false; } },
+  { n: 'DUCK ARMY', on() { duckArmy = true; for (let i = 0; i < 10; i++) makeDuck(); }, off() { duckArmy = false; } },
+  { n: 'GARY IS ANGRY', dur: 6, on() { this.acc = 0; floatText('GARY IS ANGRY', toaster.position.clone().setY(4), '#ff4444', 36); },
+    tick(dt) { this.acc += dt; while (this.acc >= 0.3) { this.acc -= 0.3; shootToast(); } } },
+);
+OBJ.push(
+  { t: 'Sit on the <b>Couch of Mystery</b> for 2 seconds. You\'ve earned it.', init() { this.b = couchSits; }, check() { return couchSits > this.b; } },
+  { t: 'Walk through the <b>Door to Nowhere</b>. Go on. What could happen.', init() { this.b = doorTrips; }, check() { return doorTrips > this.b; } },
+  { t: '<b>Bounce on a trampoline 3 times.</b> Doctor\'s orders.', init() { this.b = bounces; }, check() { return bounces - this.b >= 3; } },
+  { t: 'Get <b>hit by toast 2 times.</b> Breakfast is fighting back.', init() { this.b = toastHits; }, check() { return toastHits - this.b >= 2; } },
+  { t: '<b>Honk at Kevin.</b> He\'s right there. He\'s always right there.', init() { this.b = kevinHonked; }, check() { return kevinHonked > this.b; } },
+);
+SUN_QUOTES.push('Gary the toaster is armed. I am not involved.', 'Kevin is not a real fish.', 'Don\'t look at the sky eyes.',
+  'The couch was here first.', 'I went through that door once. Never again.');
+POP_MSGS.push('Kevin says hi.', 'Gary the toaster has your address.', 'The couch has moved. Act natural.', 'The sky eyes would like a word.',
+  'Your toast is now armed.', 'Door to Nowhere: 5 stars, would nowhere again.');
+
+// --- stampede cows: they fly. they don't care. they have places to be. ---
+const stampedeCows = [];
+function spawnStampedeCow() {
+  if (stampedeCows.length > 140) return;
+  makeCow(); const c = cows.pop();          // borrow the cow factory, keep it out of the normal herd
+  const a = rand(0, 6.28), d = rand(0, 55);
+  c.g.position.set(chest.p.x + Math.cos(a) * d, Math.random() < 0.4 ? COW_Y : rand(1.5, 22), chest.p.z + Math.sin(a) * d);
+  const h = rand(0, 6.28), speed = rand(20, 42);
+  c.v.set(Math.cos(h) * speed, rand(-4, 6), Math.sin(h) * speed);
+  c.g.rotation.y = Math.atan2(-c.v.z, c.v.x);
+  c.spin.set(rand(-6, 6), 0, rand(-6, 6)).multiplyScalar(Math.random() < 0.5 ? 1 : 0); // half tumble, half fly perfectly level
+  c.life = rand(3.5, 5.5); c.scale = 0;
+  c.g.scale.setScalar(0.01);
+  stampedeCows.push(c);
+}
+function updateStampede(dt) {
+  for (let i = stampedeCows.length - 1; i >= 0; i--) {
+    const c = stampedeCows[i], p = c.g.position;
+    c.life -= dt; c.hitCd -= dt;
+    p.addScaledVector(c.v, dt);
+    if (p.y < COW_Y) { p.y = COW_Y; c.v.y = Math.abs(c.v.y) * 0.5; }
+    c.g.rotation.x += c.spin.x * dt; c.g.rotation.z += c.spin.z * dt;
+    const s = Math.min(1, c.life * 2, c.g.scale.x + dt * 5); c.g.scale.setScalar(Math.max(0.01, s)); // pop in, shrink out
+    if (c.hitCd <= 0 && P.some(pt => pt.p.distanceTo(p) < 1.4 + pt.r)) {
+      c.hitCd = 1; limpTimer = 1.2; cowBonks++; addScore(5); moo(c);
+      for (const pt of P) impulse(pt, tmpV.copy(c.v).multiplyScalar(0.5).setY(10));
+      floatText(pick(['COW\'D', 'hit by a cow', 'MOOVE', 'cow delivery']), head.p, '#fff', 28);
+    }
+    if (Math.random() < dt * 0.3) moo(c);
+    if (c.life <= 0) { scene.remove(c.g); stampedeCows.splice(i, 1); }
+  }
+}
+
+function updateAbsurd(dt) {
+  updateStampede(dt);
+  // ----- couch -----
+  const cl = couch.worldToLocal(tLocal.copy(pelvis.p));
+  if (Math.abs(cl.x) < 2 && Math.abs(cl.z) < 1 && pelvis.p.y < 1.9) {
+    if (couchSit === 0) floatText(pick(['ahh. couch.', 'finally.', 'this is my couch now']), head.p, '#ffaaaa', 22);
+    couchSit += dt;
+    const crossed = t => couchSit > t && couchSit - dt <= t;
+    if (crossed(2)) { couchSits++; addScore(20); floatText('+20 RELAXATION', head.p, '#aaffaa', 26); }
+    if (crossed(5)) floatText('the couch is thinking...', couch.position.clone().setY(2.5), '#ffaaaa', 22);
+    if (crossed(8)) floatText('the couch is ALMOST ready', couch.position.clone().setY(2.5), '#ff7777', 24);
+    if (crossed(10)) {
+      floatText('THE COUCH HAS DECIDED', couch.position.clone().setY(3), '#ff3333', 34);
+      addScore(50); shakeT = 0.4;
+      startEvent('🛋️ THE COUCH SUMMONS: ');
+    }
+  } else couchSit = 0;
+  couchMoveT -= dt;
+  if (couchMoveT <= 0 && couchSit === 0) {
+    couchMoveT = rand(30, 50);
+    floatText('*couch noises*', couch.position.clone().setY(2), '#ffaaaa', 22);
+    const a = rand(0, 6.28), d = rand(10, 35);
+    couch.position.set(chest.p.x + Math.cos(a) * d, 0, chest.p.z + Math.sin(a) * d); couch.rotation.y = rand(0, 6.28);
+  }
+  // ----- door -----
+  doorCd -= dt;
+  const dl = door.worldToLocal(tLocal.copy(chest.p));
+  if (doorCd <= 0 && Math.abs(dl.x) < 0.8 && Math.abs(dl.z) < 0.35 && chest.p.y < 3.2) {
+    doorCd = 2; doorTrips++; addScore(25);
+    const a = rand(0, 6.28), d = rand(40, 90);
+    teleportGerald(new THREE.Vector3(Math.cos(a) * d, 0, Math.sin(a) * d));
+    [400, 600, 800, 1200].forEach((f, i) => tone(f, f * 1.5, 0.15, 'sine', 0.12, i * 0.06));
+    shakeT = 0.3;
+    setTimeout(() => floatText(pick(DOOR_LINES), head.p, '#cc99ff', 26), 150);
+  }
+  // ----- trampolines -----
+  for (const t of trampolines) {
+    t.cd -= dt; t.squish *= 0.85; t.m.scale.set(1, 1, 1); t.m.position.y = 0.8 - t.squish * 0.3;
+    if (t.cd > 0) continue;
+    const tp = t.g.position;
+    if (P.some(pt => Math.hypot(pt.p.x - tp.x, pt.p.z - tp.z) < 2 && pt.p.y < 0.95 + pt.r)) {
+      t.cd = 0.4; t.squish = 1; bounces++; addScore(3);
+      for (const pt of P) { const vy = (pt.p.y - pt.o.y) / PDT; impulse(pt, tmpV.set(0, Math.max(0, -vy) + 22, 0)); }
+      tone(200, 900, 0.3, 'sine', 0.25);
+      floatText(pick(['BOING', 'BOIOIOING', 'sproing', 'wheee']), head.p, '#66ccff');
+    }
+  }
+  // ----- Gary the toaster -----
+  const toG = tmpV2.subVectors(chest.p, toaster.position).setY(0);
+  const dG = toG.length();
+  toaster.rotation.y = Math.atan2(toG.x, toG.z);
+  if (dG > 9) toaster.position.addScaledVector(toG.normalize(), 2.5 * dt);
+  toaster.position.y = 1.6 + Math.abs(Math.sin(simTime * 10)) * 0.2;
+  toaster.children.forEach(c => { if (c.name === 'leg') c.rotation.x = Math.sin(simTime * 10 + c.position.x) * 0.5; });
+  toastShootT -= dt;
+  if (toastShootT <= 0 && dG < 40) { toastShootT = rand(3, 6); shootToast(); }
+  for (let i = toasts.length - 1; i >= 0; i--) {
+    const t = toasts[i];
+    t.life -= dt;
+    if (t.m.position.y > 0.1) {
+      t.v.y -= G * dt; t.m.position.addScaledVector(t.v, dt);
+      t.m.rotation.x += dt * 12; t.m.rotation.y += dt * 7;
+      if (t.m.position.y < 0.1) { t.m.position.y = 0.1; t.m.rotation.set(-Math.PI / 2, 0, rand(0, 6)); }
+    }
+    if (!t.hit && t.m.position.y > 0.2 && P.some(pt => pt.p.distanceTo(t.m.position) < 0.5 + pt.r)) {
+      t.hit = true; toastHits++; limpTimer = 1; sfx.bonk();
+      const push = t.v.clone().setY(0).normalize().multiplyScalar(9);
+      for (const pt of P) impulse(pt, tmpV.set(push.x, 7, push.z));
+      floatText(pick(['TOASTED', 'BREAKFAST\'D', 'crumbs everywhere', 'buttered']), head.p, '#ffcc66', 30);
+      t.v.multiplyScalar(-0.3);
+    }
+    if (t.life <= 0) { scene.remove(t.m); toasts.splice(i, 1); }
+  }
+  // ----- Kevin -----
+  kevinPrev.copy(kevin.position);
+  const kt = tmpV2.set(chest.p.x + Math.cos(simTime * 0.7) * 2.2, chest.p.y + 1.8 + Math.sin(simTime * 2) * 0.3, chest.p.z + Math.sin(simTime * 0.7) * 2.2);
+  kevin.position.lerp(kt, 0.04);
+  tmpV.subVectors(kevin.position, kevinPrev);
+  if (tmpV.lengthSq() > 1e-6) kevin.lookAt(tmpV.add(kevin.position));
+  kevin.getObjectByName('tail').rotation.y = Math.sin(simTime * 12) * 0.5;
+  kevinTalkT -= dt;
+  if (kevinTalkT <= 0) { kevinTalkT = rand(12, 20); floatText(pick(KEVIN_LINES), kevin.position.clone().setY(kevin.position.y + 0.8), '#ffb366', 20); tone(500, 300, 0.15, 'sine', 0.1); }
+  if (honks > lastHonks) {
+    if (kevin.position.distanceTo(chest.p) < 6) { kevinHonked++; floatText(pick(['WHY', 'my ears!! (I have no ears)', 'rude, Gerald']), kevin.position.clone().setY(kevin.position.y + 0.8), '#ffb366', 24); }
+    lastHonks = honks;
+  }
+  // ----- sky eyes -----
+  for (const e of skyEyes) {
+    e.g.lookAt(chest.p);
+    e.blink -= dt;
+    e.g.scale.y = e.blink < 0.15 && e.blink > 0 ? 0.1 : 1;
+    if (e.blink <= 0) e.blink = rand(3, 9);
+  }
+  // ----- thoughts -----
+  thoughtT -= dt;
+  if (thoughtT <= 0) { thoughtT = rand(18, 30); floatText('💭 ' + pick(THOUGHTS), head.p.clone().setY(head.p.y + 1), '#e0e0ff', 20); }
+  // ----- chaos -----
+  if (disco) {
+    scene.background.setHSL((simTime * 0.6) % 1, 0.8, 0.5); scene.fog.color.copy(scene.background);
+    discoBeat -= dt;
+    if (discoBeat <= 0) { discoBeat = 0.3; tone(140, 40, 0.15, 'sine', 0.35); if (Math.random() < 0.5) tone(rand(400, 900), rand(400, 900), 0.1, 'square', 0.04); }
+    for (const c of cows) if (c.g.position.y < COW_Y + 0.5) c.g.rotation.y += dt * 8; // cows dance
+  }
+  scene.scale.y = THREE.MathUtils.lerp(scene.scale.y, pancake ? 0.25 : 1, 0.05);
+  if (rollMode === 'spin') camRoll += dt * 3;
+  else {
+    const goal = rollMode === 'flip' ? Math.PI : 0;
+    const twoPi = Math.PI * 2, base = Math.round((camRoll - goal) / twoPi) * twoPi + goal;
+    camRoll += (base - camRoll) * 0.05;
+  }
+  if (cowsFly) for (const c of cows) {
+    c.v.y += (G * 0.5 + 2) * dt; if (c.g.position.y > 25) c.v.y = Math.min(c.v.y, 0);
+    c.v.x += Math.cos(c.heading) * 3 * dt; c.v.z -= Math.sin(c.heading) * 3 * dt;
+    c.spin.y = 2;
+  }
+  if (duckArmy) for (const d of ducks) {
+    if (d.falling) continue;
+    tmpV.subVectors(chest.p, d.g.position).setY(0);
+    if (tmpV.lengthSq() < 1600) { d.g.position.addScaledVector(tmpV.normalize(), 5 * dt); d.g.rotation.y = Math.atan2(-tmpV.z, tmpV.x); }
+  }
+}
+
+// ---------- main loop ----------
+const clock = new THREE.Clock();
+let acc = 0;
+const camTarget = new THREE.Vector3(0, 2, 0);
+function frame() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (started) {
+    acc += dt;
+    let n = 0;
+    while (acc >= PDT && n++ < 8) { physStep(PDT); acc -= PDT; }
+    flopCd -= dt; limpTimer -= dt; cubeBumpCd -= dt;
+    updateCows(dt); updateDucks(dt); updatePopups(dt); updateAbsurd(dt);
+
+    if (obj && obj.check(dt)) {
+      sfx.ding(); addScore(100); obj.done?.();
+      toast(`✨ OBJECTIVE COMPLETE ✨<br><span style="font-size:.6em">Reward: ${pick(REWARDS)}</span>`);
+      newObjective();
+    }
+    // events
+    eventT -= dt;
+    if (activeEvent) { activeEvent.tick?.(dt); activeT -= dt; if (activeT <= 0) { activeEvent.off?.(); activeEvent = null; } }
+    if (eventT <= 0 && !activeEvent) startEvent();
+    bannerT -= dt; if (bannerT <= 0) eventEl.style.opacity = 0;
+    toastT -= dt; if (toastT <= 0) toastEl.style.opacity = 0;
+    sunT -= dt; sunShowT -= dt;
+    if (sunT <= 0) { sunT = rand(10, 16); sunShowT = 5; sunSpoke++; sunEl.textContent = pick(SUN_QUOTES); sunEl.style.opacity = 1; }
+    if (sunShowT <= 0) sunEl.style.opacity = 0;
+    const bd = banana.position.distanceTo(chest.p);
+    banEl.textContent = obj?.banana ? `🍌 Banana: ${bd.toFixed(0)}m away (follow the beam)` : '';
+  }
+
+  // camera
+  if (keys.arrowleft) yaw += dt * 2; if (keys.arrowright) yaw -= dt * 2;
+  camTarget.lerp(chest.p, 0.08);
+  const dist = 10;
+  camera.position.set(camTarget.x + Math.sin(yaw) * dist * Math.cos(pitch), camTarget.y + 1 + dist * Math.sin(pitch),
+    camTarget.z + Math.cos(yaw) * dist * Math.cos(pitch));
+  camera.lookAt(camTarget.x, camTarget.y + 0.5, camTarget.z);
+  sunLight.position.set(chest.p.x + 20, 40, chest.p.z + 10); sunLight.target.position.copy(chest.p);
+  updateSun(dt);
+  if (shakeT > 0) { shakeT -= dt; const s = shakeT * 1.5; camera.position.x += rand(-s, s); camera.position.y += rand(-s, s); }
+  camera.rotateZ(camRoll);
+
+  // render Gerald
+  headG.position.copy(head.p); headG.lookAt(camera.position);
+  const hs = THREE.MathUtils.lerp(headG.scale.x, bigHead ? 3 : 1, 0.08); headG.scale.setScalar(hs);
+  const spd = velOf(head, tmpV2).length();
+  pupils.forEach((pu, i) => { pu.position.x = THREE.MathUtils.clamp(Math.sin(simTime * (9 + i * 3)) * spd * 0.012, -0.08, 0.08);
+    pu.position.y = THREE.MathUtils.clamp(Math.cos(simTime * (7 + i * 5)) * spd * 0.012, -0.08, 0.08); });
+  mouth.scale.y = 1 + Math.min(spd * 0.15, 2);
+  setLimb(torso, pelvis.p, chest.p, 1.2);
+  setLimb(arms[0], chest.p, hL.p); setLimb(arms[1], chest.p, hR.p);
+  setLimb(legs[0], pelvis.p, fL.p); setLimb(legs[1], pelvis.p, fR.p);
+  hands[0].position.copy(hL.p); hands[1].position.copy(hR.p);
+  feet[0].position.copy(fL.p); feet[1].position.copy(fR.p);
+  const fy = Math.atan2(chest.p.x - camera.position.x, chest.p.z - camera.position.z) + Math.PI;
+  feet.forEach(f => f.rotation.y = fy);
+
+  // cube looks at you, judgmentally
+  const ta = Math.atan2(chest.p.x - cube.position.x, chest.p.z - cube.position.z);
+  let da = ta - cube.rotation.y; da = Math.atan2(Math.sin(da), Math.cos(da));
+  cube.rotation.y += da * 0.02;
+  cubeBody.scale.y = 1 + Math.sin(simTime * 2) * 0.03;
+  cubePupils.forEach(p => { p.position.x = Math.sin(simTime * 0.7) * 0.2; });
+  brow.rotation.z = apologized ? 0 : 0.15 + Math.sin(simTime * 3) * 0.05;
+
+  banana.rotation.y += dt * 2; banMesh.position.y = Math.sin(simTime * 2) * 0.4;
+  for (let i = rings.length - 1; i >= 0; i--) {
+    const r = rings[i]; r.t += dt; r.m.scale.setScalar(1 + r.t * 14); r.m.material.opacity = 1 - r.t / 0.5;
+    if (r.t > 0.5) { scene.remove(r.m); rings.splice(i, 1); }
+  }
+  updateFloats(dt);
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+
+document.getElementById('start').addEventListener('click', e => {
+  e.currentTarget.remove(); started = true; ac().resume(); sfx.boing(); lockMouse();
+  newObjective();
+  const warn = document.getElementById('warning');
+  warn.style.opacity = 1; setTimeout(() => warn.style.opacity = 0, 3500);
+  setTimeout(() => { sunEl.textContent = 'Oh great. It\'s Gerald.'; sunEl.style.opacity = 1; sunShowT = 4; }, 1200);
+});
+frame();
+</script>
+</body>
+</html>
